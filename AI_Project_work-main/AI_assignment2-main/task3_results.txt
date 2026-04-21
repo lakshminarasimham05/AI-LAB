@@ -1,0 +1,22 @@
+Task 3: Multi-class Classification using FCNN
+======================================================================
+
+DATASET1
+Best Architecture: [2, 3, 3]
+Test Accuracy: 1.0000
+Confusion Matrix:
+[[100   0   0]
+ [  0 100   0]
+ [  0   0 100]]
+
+DATASET2
+Best Architecture: [2, 10, 5, 3]
+Test Accuracy: 1.0000
+Confusion Matrix:
+[[100   0   0]
+ [  0 100   0]
+ [  0   0 100]]
+
+Single Neuron Comparison:
+Dataset 1: 1.0000
+Dataset 2: 0.4267

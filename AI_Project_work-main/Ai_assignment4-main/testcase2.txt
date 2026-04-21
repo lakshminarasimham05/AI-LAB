@@ -1,0 +1,49 @@
+% ============================================================
+%  TEST CASE 2  -  Research Lab Workflow (Multi-chain)
+%  MA3206 AI Assignment 4
+% ============================================================
+%  14 assignments, group size g=2.
+%  Food costs: DF=1, TC=3, PM=5, GJ=10  (highly non-uniform).
+%  Total food cost fixed at 58 for any schedule.
+%
+%  Structure: Three semi-independent chains that share some
+%  early nodes, then merge at final deliverables.
+%  Chain A (long):  A1->A2->A3->A4->A5  (depth 0..4)
+%  Chain B (medium):A6->A7->A8           (depth 0..2)
+%  Chain C (parallel):A9,A10->A11        (depth 0,0,1)
+%  Merge: A12(needs A5+A8), A13(needs A8+A11), A14(needs A5+A11)
+%
+%  KEY PROPERTY:
+%  Greedy-Depth achieves 7 days by running chains in parallel.
+%  Greedy-Cost achieves same days but reorders within days.
+%  Greedy-Topo spreads work across 8 days.
+%  Strategies show clearly different day-counts.
+%
+%  Day-count lower bound: ceil(14/2) = 7 days.
+%  Greedy-Depth reaches this bound.
+% ============================================================
+C DF 1
+C TC 3
+C PM 5
+C GJ 10
+G 2
+I 1 2 3 4 5 6 -1
+O 30 31 32 -1
+% Chain A: depth 0..4
+A 1  1 2  10 DF
+A 2  10 3 11 TC
+A 3  11 4 12 PM
+A 4  12 5 13 GJ
+A 5  13 6 14 DF
+% Chain B: depth 0..2
+A 6  1 3  15 TC
+A 7  15 4 16 PM
+A 8  16 5 17 GJ
+% Chain C: parallel then merge
+A 9  1 2  18 DF
+A 10 3 4  19 TC
+A 11 18 19 20 PM
+% Merge assignments
+A 12 14 17 30 DF
+A 13 17 20 31 TC
+A 14 14 20 32 PM

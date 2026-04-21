@@ -1,0 +1,72 @@
+% ============================================================
+%  TEST CASE 3  -  Software Engineering Sprint (Wide Parallel)
+%  MA3206 AI Assignment 4
+% ============================================================
+%  16 assignments, group size g=4.
+%  Food costs: TC=1, DF=2, PM=4, GJ=8  (GJ is 8x TC).
+%  Total food cost fixed at 56 for any schedule.
+%
+%  Structure: 3 parallel development tracks that merge at
+%  system integration, then converge to final delivery.
+%
+%  BACKEND TRACK:
+%    A1(DB setup):   Req(1)+Schema(4)  -> N7,  food TC (cheap)
+%    A2(API layer):  Req(1)+Spec(3)    -> N8,  food TC
+%    A3(Auth):       A1(N7)+A2(N8)    -> N9,  food PM
+%    A4(Business):   A2(N8)+Spec(3)   -> N10, food DF
+%
+%  FRONTEND TRACK:
+%    A5(UI comps):   Design(2)+Figma(5)-> N11, food TC
+%    A6(State mgmt): A5(N11)+Spec(3)  -> N12, food DF
+%    A7(Integration):A6(N12)+A3(N9)   -> N13, food PM
+%
+%  DEVOPS TRACK:
+%    A8(CI/CD):      Env(6)+Req(1)    -> N14, food TC
+%    A9(Monitoring): A8(N14)+Schema(4)-> N15, food DF
+%    A10(Deploy):    A9(N15)+A4(N10)  -> N16, food GJ  (EXPENSIVE!)
+%
+%  INTEGRATION:
+%    A11(Sys integ): A7(N13)+A10(N16) -> N17, food PM
+%    A12(Testing):   A11(N17)+A8(N14) -> N18, food TC
+%    A13(UAT):       A12(N18)+A7(N13) -> N19, food DF
+%
+%  DELIVERY:
+%    A14(Release):   A13(N19)+A10(N16)-> O1(25), food GJ (EXPENSIVE!)
+%    A15(Docs):      A12(N18)+A4(N10) -> O2(26), food DF
+%    A16(Handover):  A14(25)+A15(26)  -> O3(27), food PM
+%
+%  KEY PROPERTY:
+%  Lower bound days = ceil(16/4) = 4. Wide parallelism allows
+%  Greedy-Depth to achieve 4 days (Layer 0: A1,A2,A5,A8; etc).
+%  Greedy-Cost struggles because GJ (cost=8) creates bottlenecks.
+%  Day difference between strategies: 4 days (best) vs 8 days (worst).
+%  This test case shows the LARGEST day-count difference between strategies.
+% ============================================================
+C TC 1
+C DF 2
+C PM 4
+C GJ 8
+G 4
+I 1 2 3 4 5 6 -1
+O 25 26 27 -1
+% Backend
+A 1  1 4  7  TC
+A 2  1 3  8  TC
+A 3  7 8  9  PM
+A 4  8 3  10 DF
+% Frontend
+A 5  2 5  11 TC
+A 6  11 3 12 DF
+A 7  12 9 13 PM
+% DevOps
+A 8  6 1  14 TC
+A 9  14 4 15 DF
+A 10 15 10 16 GJ
+% Integration
+A 11 13 16 17 PM
+A 12 17 14 18 TC
+A 13 18 13 19 DF
+% Delivery
+A 14 19 16 25 GJ
+A 15 18 10 26 DF
+A 16 25 26 27 PM

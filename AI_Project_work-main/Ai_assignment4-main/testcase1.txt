@@ -1,0 +1,38 @@
+% ============================================================
+%  TEST CASE 1  -  Original Problem Instance (Figure 1)
+%  MA3206 AI Assignment 4
+% ============================================================
+%  11 assignments, group size g=3, uniform food costs (all=1).
+%  Total food cost is FIXED at 11 for any valid schedule.
+%  Strategies differ ONLY in number of days.
+%
+%  Greedy-Depth achieves minimum 4 days (=ceil(11/3)) because
+%  it processes critical-path assignments A1,A2,A6 on Day 1,
+%  unlocking A5,A3,A10 on Day 2, A4,A9,A7 on Day 3,
+%  and completing A8,A11 on Day 4.
+%  Other strategies require 5 days due to suboptimal ordering.
+%
+%  Dependency layers:
+%    Layer 0 (no assignment prereqs): A1,A2,A3,A4,A6
+%    Layer 1: A5(needs A1,A2), A7(needs A3), A8(needs A4), A10(needs A6)
+%    Layer 2: A9(needs A5)
+%    Layer 3: A11(needs A9 and A10)
+% ============================================================
+C TC 1
+C PM 1
+C DF 1
+C GJ 1
+G 3
+I 1 2 3 4 5 6 -1
+O 13 14 17 -1
+A 1  1 3  7  TC
+A 2  4 2  8  TC
+A 3  1 3  9  TC
+A 4  2 3  10 PM
+A 5  7 8  11 TC
+A 6  4 6  12 TC
+A 7  6 9  13 PM
+A 8  10 5 14 GJ
+A 9  1 11 15 DF
+A 10 3 12 16 TC
+A 11 15 16 17 DF

@@ -1,0 +1,348 @@
+"""
+Task 4: Multi-class Classification using FCNN on MNIST Dataset
+================================================================
+AI Assignment 2 - Group K
+
+Classes used: 1, 3, 5, 7, 9
+Optimizers: SGD, Batch GD, Momentum, NAG, RMSprop, Adam
+Loss: Cross-entropy
+"""
+
+import numpy as np
+import matplotlib.pyplot as plt
+import time
+import warnings
+warnings.filterwarnings('ignore')
+np.random.seed(42)
+
+def generate_synthetic_mnist(classes=[1, 3, 5, 7, 9], samples_per_class=200):
+    """Generate synthetic MNIST-like data."""
+    np.random.seed(42)
+    X_all, y_all = [], []
+    
+    for class_idx, digit in enumerate(classes):
+        for _ in range(samples_per_class):
+            img = np.zeros((28, 28))
+            if digit == 1:
+                col = np.random.randint(10, 18)
+                img[5:23, col-1:col+2] = np.random.uniform(0.7, 1.0, (18, 3))
+            elif digit == 3:
+                img[6:8, 8:20] = np.random.uniform(0.7, 1.0, (2, 12))
+                img[13:15, 8:20] = np.random.uniform(0.7, 1.0, (2, 12))
+                img[20:22, 8:20] = np.random.uniform(0.7, 1.0, (2, 12))
+                img[6:22, 18:20] = np.random.uniform(0.7, 1.0, (16, 2))
+            elif digit == 5:
+                img[5:7, 8:20] = np.random.uniform(0.7, 1.0, (2, 12))
+                img[5:14, 8:10] = np.random.uniform(0.7, 1.0, (9, 2))
+                img[12:14, 8:20] = np.random.uniform(0.7, 1.0, (2, 12))
+                img[12:22, 18:20] = np.random.uniform(0.7, 1.0, (10, 2))
+                img[20:22, 8:20] = np.random.uniform(0.7, 1.0, (2, 12))
+            elif digit == 7:
+                img[5:7, 8:20] = np.random.uniform(0.7, 1.0, (2, 12))
+                for i in range(16):
+                    col = 18 - i//2
+                    if 8 <= col <= 18:
+                        img[7+i, col:col+2] = np.random.uniform(0.7, 1.0, 2)
+            elif digit == 9:
+                img[5:13, 8:10] = np.random.uniform(0.7, 1.0, (8, 2))
+                img[5:13, 18:20] = np.random.uniform(0.7, 1.0, (8, 2))
+                img[5:7, 8:20] = np.random.uniform(0.7, 1.0, (2, 12))
+                img[11:13, 8:20] = np.random.uniform(0.7, 1.0, (2, 12))
+                img[11:23, 18:20] = np.random.uniform(0.7, 1.0, (12, 2))
+            
+            noise = np.random.normal(0, 0.1, (28, 28))
+            img = np.clip(img + noise, 0, 1)
+            shift_x, shift_y = np.random.randint(-2, 3), np.random.randint(-2, 3)
+            img = np.roll(np.roll(img, shift_x, axis=0), shift_y, axis=1)
+            X_all.append(img.flatten())
+            y_all.append(class_idx)
+    
+    X, y = np.array(X_all), np.array(y_all)
+    indices = np.random.permutation(len(X))
+    return X[indices], y[indices]
+
+def one_hot_encode(y, n_classes):
+    one_hot = np.zeros((len(y), n_classes))
+    one_hot[np.arange(len(y)), y] = 1
+    return one_hot
+
+class FCNN:
+    def __init__(self, layer_sizes):
+        self.layer_sizes = layer_sizes
+        self.weights = [np.random.randn(layer_sizes[i], layer_sizes[i+1]) * np.sqrt(2.0 / layer_sizes[i]) 
+                       for i in range(len(layer_sizes) - 1)]
+        self.biases = [np.zeros((1, layer_sizes[i+1])) for i in range(len(layer_sizes) - 1)]
+        self.reset_state()
+    
+    def reset_state(self):
+        self.velocity_w = [np.zeros_like(w) for w in self.weights]
+        self.velocity_b = [np.zeros_like(b) for b in self.biases]
+        self.cache_w = [np.zeros_like(w) for w in self.weights]
+        self.cache_b = [np.zeros_like(b) for b in self.biases]
+        self.m_w = [np.zeros_like(w) for w in self.weights]
+        self.m_b = [np.zeros_like(b) for b in self.biases]
+        self.v_w = [np.zeros_like(w) for w in self.weights]
+        self.v_b = [np.zeros_like(b) for b in self.biases]
+        self.t = 0
+        self.activations, self.z_values = [], []
+    
+    def relu(self, z): return np.maximum(0, z)
+    def relu_deriv(self, z): return (z > 0).astype(float)
+    def softmax(self, z):
+        exp_z = np.exp(z - np.max(z, axis=1, keepdims=True))
+        return exp_z / np.sum(exp_z, axis=1, keepdims=True)
+    
+    def forward(self, X):
+        self.activations, self.z_values = [X], []
+        a = X
+        for i in range(len(self.weights)):
+            z = np.dot(a, self.weights[i]) + self.biases[i]
+            self.z_values.append(z)
+            a = self.relu(z) if i < len(self.weights) - 1 else self.softmax(z)
+            self.activations.append(a)
+        return a
+    
+    def loss(self, y_pred, y_true):
+        return -np.mean(np.sum(y_true * np.log(np.clip(y_pred, 1e-15, 1-1e-15)), axis=1))
+    
+    def backward(self, y_true):
+        m = y_true.shape[0]
+        dw, db = [None]*len(self.weights), [None]*len(self.biases)
+        delta = self.activations[-1] - y_true
+        for i in range(len(self.weights) - 1, -1, -1):
+            dw[i] = np.dot(self.activations[i].T, delta) / m
+            db[i] = np.sum(delta, axis=0, keepdims=True) / m
+            if i > 0:
+                delta = np.dot(delta, self.weights[i].T) * self.relu_deriv(self.z_values[i-1])
+        return dw, db
+    
+    def update(self, dw, db, lr, opt, momentum=0.9, beta=0.99, beta1=0.9, beta2=0.999, eps=1e-8):
+        for i in range(len(self.weights)):
+            if opt == 'sgd' or opt == 'batch':
+                self.weights[i] -= lr * dw[i]
+                self.biases[i] -= lr * db[i]
+            elif opt == 'momentum':
+                self.velocity_w[i] = momentum * self.velocity_w[i] - lr * dw[i]
+                self.velocity_b[i] = momentum * self.velocity_b[i] - lr * db[i]
+                self.weights[i] += self.velocity_w[i]
+                self.biases[i] += self.velocity_b[i]
+            elif opt == 'rmsprop':
+                self.cache_w[i] = beta * self.cache_w[i] + (1 - beta) * dw[i]**2
+                self.cache_b[i] = beta * self.cache_b[i] + (1 - beta) * db[i]**2
+                self.weights[i] -= lr * dw[i] / (np.sqrt(self.cache_w[i]) + eps)
+                self.biases[i] -= lr * db[i] / (np.sqrt(self.cache_b[i]) + eps)
+            elif opt == 'adam':
+                self.t += 1
+                self.m_w[i] = beta1 * self.m_w[i] + (1 - beta1) * dw[i]
+                self.m_b[i] = beta1 * self.m_b[i] + (1 - beta1) * db[i]
+                self.v_w[i] = beta2 * self.v_w[i] + (1 - beta2) * dw[i]**2
+                self.v_b[i] = beta2 * self.v_b[i] + (1 - beta2) * db[i]**2
+                mw_h = self.m_w[i] / (1 - beta1**self.t)
+                mb_h = self.m_b[i] / (1 - beta1**self.t)
+                vw_h = self.v_w[i] / (1 - beta2**self.t)
+                vb_h = self.v_b[i] / (1 - beta2**self.t)
+                self.weights[i] -= lr * mw_h / (np.sqrt(vw_h) + eps)
+                self.biases[i] -= lr * mb_h / (np.sqrt(vb_h) + eps)
+    
+    def train(self, X_train, y_train, X_val, y_val, opt='sgd', lr=0.001, epochs=500, thr=1e-4, bs=1, **kwargs):
+        self.reset_state()
+        n = len(X_train)
+        losses, val_losses = [], []
+        
+        for ep in range(epochs):
+            idx = np.random.permutation(n)
+            X_s, y_s = X_train[idx], y_train[idx]
+            ep_loss = 0
+            
+            if opt == 'batch':
+                y_pred = self.forward(X_train)
+                dw, db = self.backward(y_train)
+                self.update(dw, db, lr, opt, **kwargs)
+                ep_loss = self.loss(y_pred, y_train)
+            else:
+                for i in range(0, n, bs):
+                    xb, yb = X_s[i:i+bs], y_s[i:i+bs]
+                    y_pred = self.forward(xb)
+                    dw, db = self.backward(yb)
+                    self.update(dw, db, lr, opt, **kwargs)
+                    ep_loss += self.loss(y_pred, yb) * len(yb)
+                ep_loss /= n
+            
+            losses.append(ep_loss)
+            val_losses.append(self.loss(self.forward(X_val), y_val))
+            
+            if len(losses) > 1 and abs(losses[-1] - losses[-2]) < thr:
+                print(f"  Converged at epoch {ep+1}")
+                break
+            if (ep+1) % 50 == 0:
+                print(f"  Epoch {ep+1}, Loss: {ep_loss:.6f}")
+        
+        return {'losses': losses, 'val_losses': val_losses, 'epochs': len(losses)}
+    
+    def predict(self, X): return np.argmax(self.forward(X), axis=1)
+    def copy_weights(self): return [w.copy() for w in self.weights], [b.copy() for b in self.biases]
+    def set_weights(self, w, b): self.weights, self.biases = [x.copy() for x in w], [x.copy() for x in b]
+
+def confusion_matrix(y_true, y_pred, n):
+    cm = np.zeros((n, n), dtype=int)
+    for t, p in zip(y_true, y_pred): cm[t, p] += 1
+    return cm
+
+def run_task4():
+    print("="*70)
+    print("Task 4: MNIST Classification")
+    print("Classes: 1, 3, 5, 7, 9")
+    print("="*70)
+    
+    X, y = generate_synthetic_mnist()
+    n = len(X)
+    idx = np.random.permutation(n)
+    split = int(0.8 * n)
+    X_train, X_test = X[idx[:split]], X[idx[split:]]
+    y_train, y_test = y[idx[:split]], y[idx[split:]]
+    y_train_oh = one_hot_encode(y_train, 5)
+    y_test_oh = one_hot_encode(y_test, 5)
+    
+    print(f"Train: {len(X_train)}, Test: {len(X_test)}")
+    
+    archs = [[784, 128, 64, 32, 5], [784, 256, 128, 64, 32, 5], [784, 256, 128, 64, 32, 16, 5]]
+    opts = {'SGD': 'sgd', 'Batch': 'batch', 'Momentum': 'momentum', 'RMSprop': 'rmsprop', 'Adam': 'adam'}
+    
+    results = {}
+    for ai, arch in enumerate(archs):
+        aname = f"Arch{ai+1}"
+        print(f"\n{'='*70}\nArchitecture {ai+1}: {arch}\n{'='*70}")
+        results[aname] = {'arch': arch}
+        
+        init_model = FCNN(arch)
+        init_w = init_model.copy_weights()
+        
+        for oname, opt in opts.items():
+            print(f"\n--- {oname} ---")
+            model = FCNN(arch)
+            model.set_weights(*init_w)
+            
+            bs = len(X_train) if opt == 'batch' else 1
+            hist = model.train(X_train, y_train_oh, X_test, y_test_oh, opt=opt, lr=0.001, 
+                              epochs=300, thr=1e-4, bs=bs, momentum=0.9, beta=0.99, beta1=0.9, beta2=0.999)
+            
+            train_acc = np.mean(model.predict(X_train) == y_train)
+            test_acc = np.mean(model.predict(X_test) == y_test)
+            
+            results[aname][oname] = {'hist': hist, 'train_acc': train_acc, 'test_acc': test_acc, 'model': model}
+            print(f"  Epochs: {hist['epochs']}, Train: {train_acc:.4f}, Test: {test_acc:.4f}")
+    
+    # Find best
+    best_acc, best_arch, best_opt = 0, None, None
+    for aname in results:
+        if 'arch' in results[aname]:
+            for oname in opts:
+                if oname in results[aname] and results[aname][oname]['test_acc'] > best_acc:
+                    best_acc = results[aname][oname]['test_acc']
+                    best_arch, best_opt = aname, oname
+    
+    print(f"\nBest: {best_arch}, {best_opt}, Acc: {best_acc:.4f}")
+    
+    best_model = results[best_arch][best_opt]['model']
+    results['best'] = {
+        'arch': best_arch, 'opt': best_opt, 'acc': best_acc,
+        'train_cm': confusion_matrix(y_train, best_model.predict(X_train), 5),
+        'test_cm': confusion_matrix(y_test, best_model.predict(X_test), 5)
+    }
+    
+    return results, archs, opts
+
+def create_plots(results, archs, opts):
+    colors = ['blue', 'orange', 'green', 'red', 'purple']
+    
+    # Training curves
+    fig, axes = plt.subplots(1, 3, figsize=(18, 5))
+    for ai, arch in enumerate(archs):
+        aname = f"Arch{ai+1}"
+        ax = axes[ai]
+        for i, oname in enumerate(opts.keys()):
+            if oname in results[aname]:
+                ax.plot(results[aname][oname]['hist']['losses'], label=oname, color=colors[i])
+        ax.set_xlabel('Epochs')
+        ax.set_ylabel('Loss')
+        ax.set_title(f'Architecture {ai+1}')
+        ax.legend()
+        ax.grid(True, alpha=0.3)
+    plt.tight_layout()
+    plt.savefig('/home/claude/GroupK_Assignment2/task4_loss.png', dpi=150)
+    plt.close()
+    
+    # Epochs comparison
+    fig, ax = plt.subplots(figsize=(12, 6))
+    x = np.arange(3)
+    w = 0.15
+    for i, oname in enumerate(opts.keys()):
+        epochs = [results[f"Arch{ai+1}"][oname]['hist']['epochs'] if oname in results[f"Arch{ai+1}"] else 0 
+                  for ai in range(3)]
+        ax.bar(x + i*w, epochs, w, label=oname, color=colors[i])
+    ax.set_xticks(x + w*2)
+    ax.set_xticklabels([f'Arch {i+1}' for i in range(3)])
+    ax.set_ylabel('Epochs')
+    ax.set_title('Epochs to Convergence')
+    ax.legend()
+    plt.tight_layout()
+    plt.savefig('/home/claude/GroupK_Assignment2/task4_epochs.png', dpi=150)
+    plt.close()
+    
+    # Accuracy
+    fig, axes = plt.subplots(1, 2, figsize=(14, 5))
+    for idx, (metric, title) in enumerate([('train_acc', 'Training'), ('test_acc', 'Test')]):
+        ax = axes[idx]
+        for i, oname in enumerate(opts.keys()):
+            accs = [results[f"Arch{ai+1}"][oname][metric] if oname in results[f"Arch{ai+1}"] else 0 
+                    for ai in range(3)]
+            ax.bar(x + i*w, accs, w, label=oname, color=colors[i])
+        ax.set_xticks(x + w*2)
+        ax.set_xticklabels([f'Arch {i+1}' for i in range(3)])
+        ax.set_ylabel('Accuracy')
+        ax.set_title(f'{title} Accuracy')
+        ax.legend()
+        ax.set_ylim([0, 1.1])
+    plt.tight_layout()
+    plt.savefig('/home/claude/GroupK_Assignment2/task4_accuracy.png', dpi=150)
+    plt.close()
+    
+    # Confusion matrix
+    fig, axes = plt.subplots(1, 2, figsize=(12, 5))
+    classes = [1, 3, 5, 7, 9]
+    for idx, (cm, title) in enumerate([(results['best']['train_cm'], 'Train'), (results['best']['test_cm'], 'Test')]):
+        ax = axes[idx]
+        im = ax.imshow(cm, cmap='Blues')
+        ax.set_xticks(range(5))
+        ax.set_yticks(range(5))
+        ax.set_xticklabels(classes)
+        ax.set_yticklabels(classes)
+        ax.set_title(f'{title} CM - {results["best"]["arch"]} {results["best"]["opt"]}')
+        for i in range(5):
+            for j in range(5):
+                ax.text(j, i, cm[i,j], ha='center', va='center', 
+                       color='white' if cm[i,j] > cm.max()/2 else 'black')
+    plt.tight_layout()
+    plt.savefig('/home/claude/GroupK_Assignment2/task4_cm.png', dpi=150)
+    plt.close()
+    
+    print("Task 4 plots saved!")
+
+if __name__ == "__main__":
+    results, archs, opts = run_task4()
+    create_plots(results, archs, opts)
+    
+    with open('/home/claude/GroupK_Assignment2/task4_results.txt', 'w') as f:
+        f.write("Task 4: MNIST Classification\nGroup K\nClasses: 1,3,5,7,9\n")
+        f.write("="*60 + "\n\nHyperparameters: lr=0.001, momentum=0.9, beta=0.99\n\n")
+        f.write("Results:\n")
+        for ai in range(3):
+            aname = f"Arch{ai+1}"
+            f.write(f"\n{aname}: {results[aname]['arch']}\n")
+            for oname in opts.keys():
+                if oname in results[aname]:
+                    r = results[aname][oname]
+                    f.write(f"  {oname}: Epochs={r['hist']['epochs']}, Train={r['train_acc']:.4f}, Test={r['test_acc']:.4f}\n")
+        f.write(f"\nBest: {results['best']['arch']} with {results['best']['opt']}, Acc={results['best']['acc']:.4f}\n")
+    
+    print("\nTask 4 completed!")

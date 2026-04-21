@@ -1,0 +1,26 @@
+Task 2: Linear Regression Using Multi-Layer Neural Network
+Group K - AI Assignment 2
+======================================================================
+
+Architecture: Input(2) -> Hidden1(5, ReLU) -> Hidden2(3, ReLU) -> Output(1)
+
+MSE Results:
+-------------------------------------------------------
+Optimizer       LR         Train MSE       Test MSE       
+-------------------------------------------------------
+GD              0.01       0.021547        0.024358       
+Momentum        0.01       0.010865        0.008342       
+Adam            0.01       0.010263        0.007795       
+GD              0.001      0.026757        0.030363       
+Momentum        0.001      0.021807        0.024738       
+Adam            0.001      0.011931        0.009316       
+
+Bonus - 3 Hidden Layers:
+Train MSE: 0.026749
+Test MSE: 0.031187
+
+Bonus - L2 Regularization:
+Lambda=0.0: Train MSE=0.010134, Test MSE=0.007617
+Lambda=0.001: Train MSE=0.010193, Test MSE=0.007675
+Lambda=0.01: Train MSE=0.010197, Test MSE=0.007635
+Lambda=0.1: Train MSE=0.010296, Test MSE=0.007613

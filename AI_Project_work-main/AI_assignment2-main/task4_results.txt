@@ -1,0 +1,31 @@
+Task 4: MNIST Classification
+Group K
+Classes: 1,3,5,7,9
+============================================================
+
+Hyperparameters: lr=0.001, momentum=0.9, beta=0.99
+
+Results:
+
+Arch1: [784, 128, 64, 32, 5]
+  SGD: Epochs=40, Train=1.0000, Test=1.0000
+  Batch: Epochs=300, Train=0.3762, Test=0.3100
+  Momentum: Epochs=11, Train=1.0000, Test=1.0000
+  RMSprop: Epochs=8, Train=1.0000, Test=1.0000
+  Adam: Epochs=6, Train=1.0000, Test=1.0000
+
+Arch2: [784, 256, 128, 64, 32, 5]
+  SGD: Epochs=31, Train=1.0000, Test=1.0000
+  Batch: Epochs=300, Train=0.5900, Test=0.5450
+  Momentum: Epochs=9, Train=1.0000, Test=1.0000
+  RMSprop: Epochs=6, Train=1.0000, Test=1.0000
+  Adam: Epochs=5, Train=1.0000, Test=1.0000
+
+Arch3: [784, 256, 128, 64, 32, 16, 5]
+  SGD: Epochs=26, Train=1.0000, Test=1.0000
+  Batch: Epochs=300, Train=0.3962, Test=0.3850
+  Momentum: Epochs=7, Train=1.0000, Test=1.0000
+  RMSprop: Epochs=5, Train=1.0000, Test=1.0000
+  Adam: Epochs=6, Train=1.0000, Test=1.0000
+
+Best: Arch1 with SGD, Acc=1.0000
